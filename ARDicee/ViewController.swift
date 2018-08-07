@@ -19,7 +19,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        self.sceneView.debugOptions = [ARSCNDebugOptions.showFeaturePoints]
+//        self.sceneView.debugOptions = [ARSCNDebugOptions.showFeaturePoints]
         
         // Set the view's delegate
         sceneView.delegate = self
@@ -47,7 +47,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
 //        sceneView.scene.rootNode.addChildNode(node)
         sceneView.autoenablesDefaultLighting = true
         
-        
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -62,6 +61,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.session.run(configuration)
     }
     
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        
+        // Pause the view's session
+        sceneView.session.pause()
+    }
+    
+    //MARK: - Dice rendering methods
+    
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         if let touch = touches.first {
             let touchLocation = touch.location(in: sceneView)
@@ -69,24 +77,28 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             let results = sceneView.hitTest(touchLocation, types: .existingPlaneUsingExtent)
             
             if let hitResult = results.first {
-                // Create a new scene
-                let diceScene = SCNScene(named: "art.scnassets/diceCollada.scn")!
-        
-                if let diceNode = diceScene.rootNode.childNode(withName: "Dice", recursively: true) {
-                    diceNode.position = SCNVector3(
-                        x: hitResult.worldTransform.columns.3.x,
-                        y: hitResult.worldTransform.columns.3.y + diceNode.boundingSphere.radius,
-                        z: hitResult.worldTransform.columns.3.z
-                    )
-                    
-                    diceArray.append(diceNode)
-                    
-                    // Set the scene to the view
-                    sceneView.scene.rootNode.addChildNode(diceNode)
-                    
-                    roll(dice: diceNode)
-                }
+                addDice(atLocation: hitResult)
             }
+        }
+    }
+    
+    func addDice(atLocation: ARHitTestResult) {
+        // Create a new scene
+        let diceScene = SCNScene(named: "art.scnassets/diceCollada.scn")!
+        
+        if let diceNode = diceScene.rootNode.childNode(withName: "Dice", recursively: true) {
+            diceNode.position = SCNVector3(
+                x: atLocation.worldTransform.columns.3.x,
+                y: atLocation.worldTransform.columns.3.y + diceNode.boundingSphere.radius,
+                z: atLocation.worldTransform.columns.3.z
+            )
+            
+            diceArray.append(diceNode)
+            
+            // Set the scene to the view
+            sceneView.scene.rootNode.addChildNode(diceNode)
+            
+            roll(dice: diceNode)
         }
     }
     
@@ -121,37 +133,37 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         dice.runAction(SCNAction.rotateBy(x: CGFloat(randomX * 3), y: 0, z: CGFloat(randomZ * 3), duration: 0.5))
     }
     
+    //MARK: - ARSCNViewDelegateMethods
+    
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
-        if anchor is ARPlaneAnchor {
-            
-            let planeAnchor = anchor as! ARPlaneAnchor
-            
-            let plane = SCNPlane(width: CGFloat(planeAnchor.extent.x), height: CGFloat(planeAnchor.extent.z))
-            
-            let planeNode = SCNNode()
-            
-            planeNode.position = SCNVector3(x: planeAnchor.center.x, y: 0, z: planeAnchor.center.z)
-            
-            planeNode.transform = SCNMatrix4MakeRotation(-Float.pi/2, 1, 0, 0)
-            
-            let gridMaterial = SCNMaterial()
-            
-            gridMaterial.diffuse.contents = UIImage(named: "art.scnassets/grid.png")
-            
-            plane.materials = [gridMaterial]
-            
-            planeNode.geometry = plane
-            
-            node.addChildNode(planeNode)
-        } else {
-            return
-        }
+        
+        guard let planeAnchor = anchor as? ARPlaneAnchor else {return}
+        
+        let planeNode = createPlane(withPlaneAncher: planeAnchor)
+        
+        node.addChildNode(planeNode)
     }
     
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
+    //MARK: - Plane Rendering Methods
+    
+    func createPlane(withPlaneAncher: ARPlaneAnchor) -> SCNNode {
+        let plane = SCNPlane(width: CGFloat(withPlaneAncher.extent.x), height: CGFloat(withPlaneAncher.extent.z))
         
-        // Pause the view's session
-        sceneView.session.pause()
+        let planeNode = SCNNode()
+        
+        planeNode.position = SCNVector3(x: withPlaneAncher.center.x, y: 0, z: withPlaneAncher.center.z)
+        
+        planeNode.transform = SCNMatrix4MakeRotation(-Float.pi/2, 1, 0, 0)
+        
+        let gridMaterial = SCNMaterial()
+        
+        gridMaterial.diffuse.contents = UIImage(named: "art.scnassets/grid.png")
+        
+        plane.materials = [gridMaterial]
+        
+        planeNode.geometry = plane
+        
+        return planeNode
     }
+    
 }
